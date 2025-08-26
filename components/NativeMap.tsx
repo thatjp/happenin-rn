@@ -1,8 +1,9 @@
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Dimensions, StyleSheet, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CreateEventCard, EventFormData } from "@/components/CreateEventCard";
 import { DarkModeToggle } from "@/components/DarkModeToggle";
 import { EventCard } from "@/components/EventCard";
 import { SearchMenu } from "@/components/SearchMenu";
@@ -28,31 +29,23 @@ export function NativeMap() {
   const [isEventCardVisible, setIsEventCardVisible] = useState(false);
   const [isCreateEventCardVisible, setIsCreateEventCardVisible] = useState(false);
   
-  // Animation values for the sliding card
-  const slideAnim = useRef(new Animated.Value(0)).current;
-  const screenHeight = Dimensions.get('window').height;
-
   // Function to show the create event card
   const showCreateEventCard = () => {
     setIsCreateEventCardVisible(true);
-    Animated.spring(slideAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-      tension: 100,
-      friction: 8,
-    }).start();
   };
 
   // Function to hide the create event card
   const hideCreateEventCard = () => {
-    Animated.spring(slideAnim, {
-      toValue: 0,
-      useNativeDriver: true,
-      tension: 100,
-      friction: 8,
-    }).start(() => {
-      setIsCreateEventCardVisible(false);
-    });
+    setIsCreateEventCardVisible(false);
+  };
+
+  // Function to handle event creation
+  const handleCreateEvent = (eventData: EventFormData) => {
+    // TODO: Implement event creation logic
+    console.log('Creating event:', eventData);
+    
+    // For now, just close the card
+    hideCreateEventCard();
   };
 
   // Fetch events from API
@@ -246,39 +239,11 @@ export function NativeMap() {
 
       {/* Create Event Sliding Card */}
       {isCreateEventCardVisible && (
-        <Animated.View
-          style={[
-            styles.createEventCard,
-            {
-              transform: [{
-                translateY: slideAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [screenHeight, 0],
-                })
-              }]
-            }
-          ]}
-        >
-          <View style={styles.createEventCardHeader}>
-            <ThemedText style={styles.createEventCardTitle}>Create New Event</ThemedText>
-            <TouchableOpacity onPress={hideCreateEventCard} style={styles.closeButton}>
-              <ThemedText style={styles.closeButtonText}>✕</ThemedText>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.createEventCardContent}>
-            <ThemedText style={styles.createEventCardSubtitle}>
-              Create a new event at your current location
-            </ThemedText>
-            
-            {/* Placeholder for event creation form */}
-            <View style={styles.formPlaceholder}>
-              <ThemedText style={styles.placeholderText}>
-                Event creation form will go here...
-              </ThemedText>
-            </View>
-          </View>
-        </Animated.View>
+        <CreateEventCard
+          isVisible={isCreateEventCardVisible}
+          onClose={hideCreateEventCard}
+          onSubmit={handleCreateEvent}
+        />
       )}
     </ThemedView>
   );
@@ -355,73 +320,5 @@ const styles = StyleSheet.create({
   searchMenu: {
     position: 'absolute',
     zIndex: 10,
-  },
-  createEventCard: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 10,
-    zIndex: 20,
-    minHeight: 300,
-  },
-  createEventCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  createEventCardTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F0F0F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#666666',
-  },
-  createEventCardContent: {
-    flex: 1,
-  },
-  createEventCardSubtitle: {
-    fontSize: 16,
-    color: '#666666',
-    marginBottom: 20,
-  },
-  formPlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8F8F8',
-    borderRadius: 12,
-    padding: 40,
-    minHeight: 200,
-  },
-  placeholderText: {
-    fontSize: 16,
-    color: '#999999',
-    textAlign: 'center',
   },
 });

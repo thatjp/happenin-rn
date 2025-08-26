@@ -50,11 +50,11 @@ export const API_CONFIG = {
   // Endpoints
   ENDPOINTS: {
     AUTH: {
-      LOGIN: '/auth/login',
-      REGISTER: '/auth/register',
-      REFRESH: '/auth/refresh',
-      LOGOUT: '/auth/logout',
-      VERIFY: '/auth/verify',
+      LOGIN: '/accounts/login',
+      REGISTER: '/accounts/register',
+      REFRESH: '/accounts/refresh',
+      LOGOUT: '/accounts/logout',
+      VERIFY: '/accounts/verify',
     },
     USERS: {
       PROFILE: '/users/profile',
@@ -149,7 +149,6 @@ export const getApiConfig = () => {
 export const buildApiUrl = (endpoint: string, params?: Record<string, string | number>) => {
   const config = getApiConfig();
   let url = `${config.BASE_URL}/api/${config.VERSION}${endpoint}`;
-  console.log('URL:', url);
   
   if (params) {
     const searchParams = new URLSearchParams();

@@ -135,17 +135,17 @@ export interface SearchRequest {
 
 // Authentication types
 export interface LoginRequest {
-  email?: string;
-  username?: string;
+  email_or_username: string;
   password: string;
 }
 
 export interface RegisterRequest {
   email: string;
   password: string;
+  password_confirm: string;
   username: string;
-  firstName?: string;
-  lastName?: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 export interface AuthResponse {
@@ -156,12 +156,23 @@ export interface AuthResponse {
   message?: string;
 }
 
+// API Response wrapper for authentication
+export interface AuthApiResponse {
+  success: boolean;
+  user: AuthResponse;
+  message?: string;
+}
+
 // API endpoints
 export type ApiEndpoint = 
-  | '/auth/login'
-  | '/auth/register'
-  | '/auth/refresh'
-  | '/auth/logout'
+  | '/accounts/login'
+  | '/accounts/register'
+  | '/accounts/refresh'
+  | '/accounts/logout'
+  | '/accounts/forgot-password'
+  | '/accounts/reset-password'
+  | '/accounts/verify-email'
+  | '/accounts/resend-verification'
   | '/users/profile'
   | '/users/profile/update'
   | '/events'

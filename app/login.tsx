@@ -49,21 +49,24 @@ export default function LoginScreen() {
       setIsSubmitting(true);
       
       // Determine if identifier is email or username
-      const isEmail = identifier.includes('@');
       const loginData: LoginRequest = {
         password,
-        ...(isEmail ? { email: identifier.trim() } : { username: identifier.trim() })
+        email_or_username: identifier,
       };
 
       // Attempt to authenticate
       const response = await authService.login(loginData);
+      console.log('Login response:', response);
       
-      if (response.success) {
+      // Check if we have a valid response with token
+      if (response && response.token) {
         // Update auth context and navigate
+        console.log('Login successful, token received');
         login(response.token);
         // Navigation will be handled by AuthContext
       } else {
-        Alert.alert('Login failed', response.message || 'Authentication failed. Please try again.');
+        console.log('Login failed - no token in response');
+        Alert.alert('Login failed', 'Authentication failed. Please try again.');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -201,7 +204,29 @@ export default function LoginScreen() {
             <ThemedText style={[styles.footerText, { color: themed.placeholder }]}>
               Don&apos;t have an account?{' '}
             </ThemedText>
-            <Pressable onPress={() => Alert.alert('Sign up', 'Registration feature is coming soon.')}>
+            <Pressable onPress={() => {
+              console.log('Sign up pressed, attempting navigation...');
+              console.log('Current route info:', {
+                canGoBack: router.canGoBack()
+              });
+              
+              // Try using the href approach with window.location as fallback
+              try {
+                console.log('Trying router.push with /register...');
+                router.push('/register');
+              } catch (error) {
+                console.error('router.push failed:', error);
+                try {
+                  console.log('Trying router.replace with /register...');
+                  router.replace('/register');
+                } catch (error2) {
+                  console.error('router.replace failed:', error2);
+                  // Last resort: try to navigate to the file directly
+                  console.log('Trying to navigate to register file...');
+                  router.push('/register');
+                }
+              }
+            }}>
               <ThemedText type="link">Sign up</ThemedText>
             </Pressable>
           </View>

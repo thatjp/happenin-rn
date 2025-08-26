@@ -1,14 +1,15 @@
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-import { authService } from '@/lib/api';
+import { apiClient, authService } from '@/lib/api';
 
 interface AuthContextType {
   isAuthenticated: boolean;
   isTestMode: boolean;
   isLoading: boolean;
-  login: (token: string) => void;
+  login: (token: string) => Promise<void>;
   logout: () => void;
+  invalidateToken: () => Promise<void>;
   enableTestMode: () => void;
   disableTestMode: () => void;
 }
@@ -30,9 +31,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
 
+  const invalidateToken = async () => {
+    try {
+      // Clear tokens without making a server call
+      await authService.clearTokens();
+    } catch (error) {
+      console.error('Token invalidation failed:', error);
+    } finally {
+      setIsAuthenticated(false);
+      setIsTestMode(false);
+      router.replace('/login');
+    }
+  };
+
   // Check authentication status on app start
   useEffect(() => {
     checkAuthStatus();
+  }, []);
+
+  // Set up token invalidation callback after auth context is initialized
+  useEffect(() => {
+    apiClient.setTokenInvalidationCallback(invalidateToken);
   }, []);
 
   // Check if user should be redirected
@@ -47,11 +66,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const currentRoute = segments[0];
     const isOnLoginScreen = currentRoute === 'login';
+    const isOnRegisterScreen = currentRoute === 'register';
     const isInTabsGroup = currentRoute === '(tabs)';
 
     console.log('Auth navigation check:', {
       currentRoute,
       isOnLoginScreen,
+      isOnRegisterScreen,
       isInTabsGroup,
       isAuthenticated,
       isTestMode,
@@ -59,13 +80,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       segments
     });
 
-    if (!isAuthenticated && !isTestMode && !isOnLoginScreen) {
+    if (!isAuthenticated && !isTestMode && !isOnLoginScreen && !isOnRegisterScreen) {
       // User is not authenticated and not in test mode, redirect to login
       console.log('Redirecting to login');
       router.replace('/login');
-    } else if ((isAuthenticated || isTestMode) && isOnLoginScreen) {
+    } else if ((isAuthenticated || isTestMode) && (isOnLoginScreen || isOnRegisterScreen)) {
       // User is authenticated or in test mode, redirect to main app index page
-      console.log('Redirecting to tabs from login');
+      console.log('Redirecting to tabs from auth screen');
       router.replace('/(tabs)');
     }
   }, [isAuthenticated, isTestMode, segments, isLoading, router]);
@@ -74,33 +95,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setIsLoading(true);
       
-      // Check if user has a valid token
-      const hasToken = authService.isAuthenticated();
+      // Check if user has a token
+      const hasToken = await authService.hasToken();
       
       if (hasToken) {
-        // Verify token is still valid by trying to get current user
-        try {
-          await authService.getCurrentUser();
-          setIsAuthenticated(true);
-        } catch (error) {
-          // Token is invalid, clear it
-          await authService.logout();
-          setIsAuthenticated(false);
-        }
+        // If we have a token, consider the user authenticated
+        // We'll validate the token on the first API call that requires it
+        setIsAuthenticated(true);
+        console.log('User has token, setting as authenticated');
       } else {
         setIsAuthenticated(false);
+        console.log('No token found, user not authenticated');
       }
     } catch (error) {
       console.error('Auth check failed:', error);
+      // Don't automatically log out on errors, just set as not authenticated
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const login = (token: string) => {
-    setIsAuthenticated(true);
-    setIsTestMode(false);
+  const login = async (token: string) => {
+    try {
+      // Store the token securely using the auth service
+      // The token should already be stored by the API client during login
+      setIsAuthenticated(true);
+      setIsTestMode(false);
+    } catch (error) {
+      console.error('Login failed:', error);
+      setIsAuthenticated(false);
+    }
   };
 
   const logout = async () => {
@@ -146,6 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading,
     login,
     logout,
+    invalidateToken,
     enableTestMode,
     disableTestMode,
   };

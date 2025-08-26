@@ -1,5 +1,5 @@
 import { API_CONFIG, API_STATUS, buildApiUrl } from './config';
-import { ApiResponse } from './types';
+import { ApiResponse, AuthApiResponse } from './types';
 
 // Request options interface
 interface RequestOptions {
@@ -36,11 +36,11 @@ export class ApiClientError extends Error {
 
 // Token storage interface
 interface TokenStorage {
-  getAccessToken(): string | null;
-  setAccessToken(token: string): void;
-  getRefreshToken(): string | null;
-  setRefreshToken(token: string): void;
-  clearTokens(): void;
+  getAccessToken(): Promise<string | null>;
+  setAccessToken(token: string): Promise<void>;
+  getRefreshToken(): Promise<string | null>;
+  setRefreshToken(token: string): Promise<void>;
+  clearTokens(): Promise<void>;
 }
 
 // Default token storage using AsyncStorage
@@ -48,33 +48,37 @@ class DefaultTokenStorage implements TokenStorage {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
 
-  getAccessToken(): string | null {
+  async getAccessToken(): Promise<string | null> {
     return this.accessToken;
   }
 
-  setAccessToken(token: string): void {
+  async setAccessToken(token: string): Promise<void> {
     this.accessToken = token;
   }
 
-  getRefreshToken(): string | null {
+  async getRefreshToken(): Promise<string | null> {
     return this.refreshToken;
   }
 
-  setRefreshToken(token: string): void {
+  async setRefreshToken(token: string): Promise<void> {
     this.refreshToken = token;
   }
 
-  clearTokens(): void {
+  async clearTokens(): Promise<void> {
     this.accessToken = null;
     this.refreshToken = null;
   }
 }
 
+// Token invalidation callback type
+export type TokenInvalidationCallback = () => void;
+
 // Main API Client class
 export class ApiClient {
   private tokenStorage: TokenStorage;
   private isRefreshing = false;
-  private refreshPromise: Promise<string> | null = null;
+  private refreshPromise: Promise<string | null> | null = null;
+  private tokenInvalidationCallback?: TokenInvalidationCallback;
 
   constructor(tokenStorage?: TokenStorage) {
     this.tokenStorage = tokenStorage || new DefaultTokenStorage();
@@ -98,12 +102,12 @@ export class ApiClient {
     const requestHeaders = await this.buildHeaders(headers);
 
     // Add authentication header if token exists
-    const accessToken = this.tokenStorage.getAccessToken();
+    const accessToken = await this.tokenStorage.getAccessToken();
     if (accessToken) {
       requestHeaders.Authorization = `Bearer ${accessToken}`;
     }
 
-    let lastError: Error;
+    let lastError: Error | undefined;
     
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
@@ -131,6 +135,11 @@ export class ApiClient {
             // Retry with new token
             requestHeaders.Authorization = `Bearer ${newToken}`;
             continue;
+          } else {
+            // Token refresh failed, notify auth context
+            if (this.tokenInvalidationCallback) {
+              this.tokenInvalidationCallback();
+            }
           }
         }
 
@@ -189,13 +198,18 @@ export class ApiClient {
   }
 
   // Authentication methods
-  async login(email: string, password: string): Promise<ApiResponse<any>> {
-    const response = await this.post('/auth/login', { email, password });
-    const data = response.data as ApiResponse<any>;
+  async login(identifier: string, password: string): Promise<AuthApiResponse> {
+    const loginData = { email_or_username: identifier, password }
     
-    if (data.success && data.data?.token) {
-      this.tokenStorage.setAccessToken(data.data.token);
-      this.tokenStorage.setRefreshToken(data.data.refreshToken);
+    const response = await this.post('/accounts/login/', loginData);
+    const data = response.data as AuthApiResponse;
+    console.log('Login response:', data);
+    
+    if (data?.success && data.data?.token) {
+      await this.tokenStorage.setAccessToken(data.data.token);
+      if (data.data.refreshToken) {
+        await this.tokenStorage.setRefreshToken(data.data.refreshToken);
+      }
     }
     
     return data;
@@ -203,27 +217,33 @@ export class ApiClient {
 
   async logout(): Promise<void> {
     try {
-      await this.post('/auth/logout');
+      await this.post('/accounts/logout');
     } finally {
-      this.tokenStorage.clearTokens();
+      await this.tokenStorage.clearTokens();
     }
   }
 
+  async clearTokens(): Promise<void> {
+    await this.tokenStorage.clearTokens();
+  }
+
   async refreshToken(): Promise<string | null> {
-    const refreshToken = this.tokenStorage.getRefreshToken();
+    const refreshToken = await this.tokenStorage.getRefreshToken();
     if (!refreshToken) return null;
 
     try {
-      const response = await this.post('/auth/refresh', { refreshToken });
+      const response = await this.post('/accounts/refresh', { refreshToken });
       const data = response.data as ApiResponse<any>;
       
       if (data.success && data.data?.token) {
-        this.tokenStorage.setAccessToken(data.data.token);
-        this.tokenStorage.setRefreshToken(data.data.refreshToken);
+        await this.tokenStorage.setAccessToken(data.data.token);
+        if (data.data.refreshToken) {
+          await this.tokenStorage.setRefreshToken(data.data.refreshToken);
+        }
         return data.data.token;
       }
     } catch (error) {
-      this.tokenStorage.clearTokens();
+      await this.tokenStorage.clearTokens();
     }
     
     return null;
@@ -284,16 +304,21 @@ export class ApiClient {
   }
 
   // Utility methods
-  isAuthenticated(): boolean {
-    return !!this.tokenStorage.getAccessToken();
+  async isAuthenticated(): Promise<boolean> {
+    const token = await this.tokenStorage.getAccessToken();
+    return !!token;
   }
 
-  getAccessToken(): string | null {
+  async getAccessToken(): Promise<string | null> {
     return this.tokenStorage.getAccessToken();
   }
 
   setTokenStorage(storage: TokenStorage): void {
     this.tokenStorage = storage;
+  }
+
+  setTokenInvalidationCallback(callback: TokenInvalidationCallback): void {
+    this.tokenInvalidationCallback = callback;
   }
 }
 

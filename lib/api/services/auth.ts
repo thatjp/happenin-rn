@@ -1,6 +1,7 @@
 import { apiClient } from '../client';
 import {
   ApiResponse,
+  AuthApiResponse,
   AuthResponse,
   LoginRequest,
   RegisterRequest,
@@ -9,14 +10,30 @@ import {
 
 export class AuthService {
   /**
-   * Authenticate user with email and password
+   * Authenticate user with email/username and password
    */
-  static async login(credentials: LoginRequest): Promise<AuthResponse> {
+  static async login(credentials: LoginRequest): Promise<AuthApiResponse> {
     try {
-      const response = await apiClient.login(credentials.email, credentials.password);
-      return response.data as AuthResponse;
+      if (!credentials.email_or_username) {
+        throw new Error('Email or username is required');
+      }
+      console.log('Login credentials:', credentials);
+      console.log('Email or username:', credentials.email_or_username);
+      
+      const identifier = credentials.email_or_username || '';
+      const response = await apiClient.login(identifier, credentials.password);
+      console.log('Auth service received response:', response);
+      
+      // The API client returns AuthApiResponse, we need to extract the user data
+      if (response?.success && response.user) {
+        console.log('hit here 1')
+        return response as AuthApiResponse;
+      } else {
+        console.log('hit here 2')
+        throw new Error(response?.message || 'Login failed - invalid response structure');
+      }
     } catch (error) {
-      throw this.handleAuthError(error);
+      throw AuthService.handleAuthError(error);
     }
   }
 
@@ -24,22 +41,36 @@ export class AuthService {
    * Register a new user account
    */
   static async register(userData: RegisterRequest): Promise<AuthResponse> {
+    console.log('Registering user:', userData);
     try {
-      const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/register', userData);
+      const response = await apiClient.post<ApiResponse<AuthResponse>>('/accounts/register/', userData);
+      console.log('Registration response:', response);
+      console.log('Response data:', response.data);
+      
       const data = response.data;
       
-      if (data.success && data.data?.token) {
-        // Store tokens after successful registration
-        // Note: The apiClient.login method handles token storage
-        // We need to manually set them here for registration
-        // This is a bit of a hack - ideally the API client would handle this
-        const authData = data.data as AuthResponse;
-        // You might want to create a method in apiClient to handle this
+      // Check if data exists and has the expected structure
+      if (!data) {
+        throw new Error('No response data received from registration');
       }
       
-      return data.data as AuthResponse;
+      // Handle different possible response structures
+      if (data.success && data.data?.token) {
+        // Standard API response structure
+        console.log('Registration successful with token');
+        return data.data as AuthResponse;
+      } else if (data.data?.token) {
+        // Alternative API response structure
+        console.log('Registration successful with alternative structure');
+        return data.data as AuthResponse;
+      } else {
+        // Unexpected response structure
+        console.error('Unexpected response structure:', data);
+        throw new Error(data.message || 'Registration failed - unexpected response format');
+      }
     } catch (error) {
-      throw this.handleAuthError(error);
+      console.error('Registration error:', error);
+      throw AuthService.handleAuthError(error);
     }
   }
 
@@ -52,6 +83,18 @@ export class AuthService {
     } catch (error) {
       // Even if logout fails on the server, clear local tokens
       console.warn('Logout failed on server, but local tokens cleared:', error);
+    }
+  }
+
+  /**
+   * Clear tokens without making a server call
+   * Used when tokens are invalid or expired
+   */
+  static async clearTokens(): Promise<void> {
+    try {
+      await apiClient.clearTokens();
+    } catch (error) {
+      console.warn('Failed to clear tokens:', error);
     }
   }
 
@@ -109,7 +152,7 @@ export class AuthService {
    */
   static async requestPasswordReset(email: string): Promise<void> {
     try {
-      await apiClient.post('/auth/forgot-password', { email });
+      await apiClient.post('/accounts/forgot-password', { email });
     } catch (error) {
       throw this.handleAuthError(error);
     }
@@ -120,7 +163,7 @@ export class AuthService {
    */
   static async resetPassword(token: string, newPassword: string): Promise<void> {
     try {
-      await apiClient.post('/auth/reset-password', {
+      await apiClient.post('/accounts/reset-password', {
         token,
         newPassword,
       });
@@ -134,7 +177,7 @@ export class AuthService {
    */
   static async verifyEmail(token: string): Promise<void> {
     try {
-      await apiClient.post('/auth/verify-email', { token });
+      await apiClient.post('/accounts/verify-email', { token });
     } catch (error) {
       throw this.handleAuthError(error);
     }
@@ -145,7 +188,7 @@ export class AuthService {
    */
   static async resendEmailVerification(): Promise<void> {
     try {
-      await apiClient.post('/auth/resend-verification');
+      await apiClient.post('/accounts/resend-verification');
     } catch (error) {
       throw this.handleAuthError(error);
     }
@@ -154,15 +197,27 @@ export class AuthService {
   /**
    * Check if user is authenticated
    */
-  static isAuthenticated(): boolean {
-    return apiClient.isAuthenticated();
+  static async isAuthenticated(): Promise<boolean> {
+    return await apiClient.isAuthenticated();
+  }
+
+  /**
+   * Check if user has a token (without validating it)
+   */
+  static async hasToken(): Promise<boolean> {
+    try {
+      const token = await apiClient.getAccessToken();
+      return !!token;
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
    * Get current access token
    */
-  static getAccessToken(): string | null {
-    return apiClient.getAccessToken();
+  static async getAccessToken(): Promise<string | null> {
+    return await apiClient.getAccessToken();
   }
 
   /**
@@ -198,6 +253,7 @@ export const authService = {
   login: AuthService.login,
   register: AuthService.register,
   logout: AuthService.logout,
+  clearTokens: AuthService.clearTokens,
   refreshToken: AuthService.refreshToken,
   getCurrentUser: AuthService.getCurrentUser,
   updateProfile: AuthService.updateProfile,
@@ -207,5 +263,6 @@ export const authService = {
   verifyEmail: AuthService.verifyEmail,
   resendEmailVerification: AuthService.resendEmailVerification,
   isAuthenticated: AuthService.isAuthenticated,
+  hasToken: AuthService.hasToken,
   getAccessToken: AuthService.getAccessToken,
 };

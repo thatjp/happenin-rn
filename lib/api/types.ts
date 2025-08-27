@@ -161,6 +161,8 @@ export interface AuthApiResponse {
   success: boolean;
   user: AuthResponse;
   message?: string;
+  token?: string;
+  refreshToken?: string;
 }
 
 // API endpoints
@@ -168,7 +170,7 @@ export type ApiEndpoint =
   | '/accounts/login'
   | '/accounts/register'
   | '/accounts/refresh'
-  | '/accounts/logout'
+  | '/accounts/logout/'
   | '/accounts/forgot-password'
   | '/accounts/reset-password'
   | '/accounts/verify-email'

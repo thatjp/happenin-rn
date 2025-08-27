@@ -1,6 +1,8 @@
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import * as Haptics from 'expo-haptics';
 import React, { useEffect, useRef } from 'react';
 import { Animated, Dimensions, Pressable, StyleSheet, View } from 'react-native';
+import { PanGestureHandler, PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/ThemedText';
@@ -25,6 +27,10 @@ export function EventCard({ event, isVisible, onClose }: EventCardProps) {
   const slideAnim = useRef(new Animated.Value(screenHeight)).current;
   const cardOpacityAnim = useRef(new Animated.Value(0)).current;
   const backdropOpacityAnim = useRef(new Animated.Value(0)).current;
+  
+  // Drag gesture handling
+  const dragAnim = useRef(new Animated.Value(0)).current;
+  const isDragging = useRef(false);
 
   // Animate card entrance and exit
   useEffect(() => {
@@ -98,6 +104,35 @@ export function EventCard({ event, isVisible, onClose }: EventCardProps) {
     });
   };
 
+  // Handle drag gesture
+  const handlePanGesture = (event: PanGestureHandlerGestureEvent) => {
+    const { translationY, state } = event.nativeEvent;
+    
+    if (state === 2) { // ACTIVE - dragging
+      isDragging.current = true;
+      dragAnim.setValue(translationY);
+    } else if (state === 5) { // END - gesture finished
+      isDragging.current = false;
+      
+      // If dragged down more than 100px, close the card
+      if (translationY > 100) {
+        // Haptic feedback when closing
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        onClose();
+      } else {
+        // Haptic feedback when snapping back
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        // Snap back to original position
+        Animated.spring(dragAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 8,
+        }).start();
+      }
+    }
+  };
+
   return (
     <>
       {/* Animated Backdrop */}
@@ -111,21 +146,25 @@ export function EventCard({ event, isVisible, onClose }: EventCardProps) {
       </Animated.View>
       
       {/* Animated Card */}
-      <Animated.View
-        style={[
-          styles.card,
-          {
-            backgroundColor: themed.background,
-            borderColor: themed.border,
-            transform: [{ translateY: slideAnim }],
-            opacity: cardOpacityAnim,
-            bottom: safeAreaInsets.bottom + tabBarHeight, // Account for tab bar and safe area
-            paddingBottom: 20 + safeAreaInsets.bottom, // Extra padding for safe area
-          },
-        ]}
-      >
-        {/* Handle bar */}
-        <View style={[styles.handleBar, { backgroundColor: themed.secondaryText }]} />
+      <PanGestureHandler onGestureEvent={handlePanGesture}>
+        <Animated.View
+          style={[
+            styles.card,
+            {
+              backgroundColor: themed.background,
+              borderColor: themed.border,
+              transform: [
+                { translateY: slideAnim },
+                { translateY: dragAnim }
+              ],
+              opacity: cardOpacityAnim,
+              bottom: safeAreaInsets.bottom + tabBarHeight, // Account for tab bar and safe area
+              paddingBottom: 20 + safeAreaInsets.bottom, // Extra padding for safe area
+            },
+          ]}
+        >
+          {/* Handle bar */}
+          <View style={[styles.handleBar, { backgroundColor: themed.secondaryText }]} />
         
         {/* Event Header */}
         <View style={styles.header}>
@@ -232,6 +271,7 @@ export function EventCard({ event, isVisible, onClose }: EventCardProps) {
           </Pressable>
         </View>
       </Animated.View>
+      </PanGestureHandler>
     </>
   );
 }
@@ -244,6 +284,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 999, // Above map but below card
   },
   backdropPressable: {
     position: 'absolute',
@@ -251,6 +292,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 999, // Same as backdrop
   },
   card: {
     position: 'absolute',
@@ -261,6 +303,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 20,
     maxHeight: screenHeight * 0.6, // Reduced from 0.7 to account for tab bar
+    zIndex: 1000, // Ensure card appears above all other UI elements
   },
   handleBar: {
     width: 40,
@@ -268,6 +311,12 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 20,
+    // Make it more obvious it's draggable
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   header: {
     marginBottom: 24,

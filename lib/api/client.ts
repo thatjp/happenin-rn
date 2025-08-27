@@ -182,6 +182,8 @@ export class ApiClient {
   }
 
   async post<T>(endpoint: string, data?: any): Promise<ApiClientResponse<T>> {
+    console.log('Posting to:', endpoint);
+    console.log('Data:', data);
     return this.request<T>(endpoint, { method: 'POST', body: data });
   }
 
@@ -205,10 +207,10 @@ export class ApiClient {
     const data = response.data as AuthApiResponse;
     console.log('Login response:', data);
     
-    if (data?.success && data.data?.token) {
-      await this.tokenStorage.setAccessToken(data.data.token);
-      if (data.data.refreshToken) {
-        await this.tokenStorage.setRefreshToken(data.data.refreshToken);
+    if (data?.success && data.user?.token) {
+      await this.tokenStorage.setAccessToken(data.user.token);
+      if (data.user.refreshToken) {
+        await this.tokenStorage.setRefreshToken(data.user.refreshToken);
       }
     }
     
@@ -217,7 +219,7 @@ export class ApiClient {
 
   async logout(): Promise<void> {
     try {
-      await this.post('/accounts/logout');
+      await this.post('/accounts/logout/');
     } finally {
       await this.tokenStorage.clearTokens();
     }
@@ -311,6 +313,14 @@ export class ApiClient {
 
   async getAccessToken(): Promise<string | null> {
     return this.tokenStorage.getAccessToken();
+  }
+
+  async setAccessToken(token: string): Promise<void> {
+    await this.tokenStorage.setAccessToken(token);
+  }
+
+  async setRefreshToken(token: string): Promise<void> {
+    await this.tokenStorage.setRefreshToken(token);
   }
 
   setTokenStorage(storage: TokenStorage): void {

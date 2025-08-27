@@ -43,9 +43,8 @@ export class AuthService {
   static async register(userData: RegisterRequest): Promise<AuthResponse> {
     console.log('Registering user:', userData);
     try {
-      const response = await apiClient.post<ApiResponse<AuthResponse>>('/accounts/register/', userData);
+      const response = await apiClient.post<any>('/accounts/register/', userData);
       console.log('Registration response:', response);
-      console.log('Response data:', response.data);
       
       const data = response.data;
       
@@ -54,17 +53,36 @@ export class AuthService {
         throw new Error('No response data received from registration');
       }
       
-      // Handle different possible response structures
-      if (data.success && data.data?.token) {
-        // Standard API response structure
+      // Handle the response structure
+      if (data.success && data.token) {
         console.log('Registration successful with token');
-        return data.data as AuthResponse;
-      } else if (data.data?.token) {
-        // Alternative API response structure
-        console.log('Registration successful with alternative structure');
-        return data.data as AuthResponse;
+        
+        // Store the token in the API client's token storage
+        await apiClient.setAccessToken(data.token);
+        if (data.refreshToken) {
+          await apiClient.setRefreshToken(data.refreshToken);
+        }
+        
+        // Create AuthResponse from the actual response structure
+        const authResponse: AuthResponse = {
+          user: {
+            id: data.user.id.toString(),
+            email: data.user.email,
+            username: data.user.username,
+            firstName: data.user.first_name,
+            lastName: data.user.last_name,
+            avatar: undefined, // API doesn't provide avatar in registration
+            createdAt: data.user.created_at,
+            updatedAt: data.user.updated_at
+          },
+          token: data.token,
+          refreshToken: data.refreshToken || '',
+          success: data.success,
+          message: data.message
+        };
+        
+        return authResponse;
       } else {
-        // Unexpected response structure
         console.error('Unexpected response structure:', data);
         throw new Error(data.message || 'Registration failed - unexpected response format');
       }

@@ -60,9 +60,10 @@ export default function RegisterScreen() {
       console.log('Submitting registration with data:', {
         email: email.trim(),
         password,
+        password_confirm: password,
         username: username.trim(),
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
       });
       
       // Call the real registration service

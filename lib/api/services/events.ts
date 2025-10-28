@@ -19,7 +19,8 @@ export class EventsService {
         page,
         limit,
       });
-      return response.data;
+      console.log('Events:', response.data);
+      return response?.data;
     } catch (error) {
       throw EventsService.handleEventError(error);
     }

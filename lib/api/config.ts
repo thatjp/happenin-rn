@@ -110,7 +110,7 @@ export const getApiConfig = () => {
     if (isPhysicalDevice) {
       // For physical devices, use your computer's local IP address
       // You can override this with an environment variable
-      const localIp = process.env.LOCAL_IP || '192.168.1.243'; // Common local IP
+      const localIp = process.env.LOCAL_IP || '192.168.1.202'; // Common local IP
       return {
         ...API_CONFIG,
         BASE_URL: `http://${localIp}:8000`,

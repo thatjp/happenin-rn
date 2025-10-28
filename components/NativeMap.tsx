@@ -60,9 +60,9 @@ export function NativeMap() {
       console.log('Full API Response:', response);
       
       // Set events from the response
-      if (response.results && Array.isArray(response.results) && response.results.length > 0) {
-        console.log('Events:', response.results);
-        setEvents(response.results);
+      if (response.data.results && Array.isArray(response.data.results) && response.data.results.length > 0) {
+        console.log('Events:', response.data.results);
+        setEvents(response.data.results);
       } else {
         console.warn('No events returned from API, using fallback data');
         // Fallback data for testing when API is not available
